@@ -90,11 +90,10 @@ func ruleExists(name, dir, programPath string) (bool, error) {
 		return false, nil
 	}
 
-	// 匹配程序路径（不区分大小写）
-	if strings.Contains(text, strings.ToLower(programPath)) {
-		return true, nil
-	}
-	return false, nil
+	// 只要未报错且未提示“无匹配规则”，则说明规则存在。
+	// 规则名称中已包含程序路径的哈希，因此具有唯一性。
+	// 不再进行严格的程序路径字符串匹配，以避免因 netsh 输出格式差异导致的误判。
+	return true, nil
 }
 
 // runNetsh 执行 netsh 命令并返回错误信息

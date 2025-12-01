@@ -142,6 +142,7 @@ func findExecutableByName(part string) (string, error) {
 }
 
 // collectSearchRoots 收集用于搜索的目录集合，包括 PATH 和常见安装目录
+// 增加了对所有驱动器中常见程序目录的扫描
 func collectSearchRoots() []string {
 	roots := []string{}
 	// PATH 环境变量
@@ -151,17 +152,75 @@ func collectSearchRoots() []string {
 			roots = append(roots, p)
 		}
 	}
-	// 常见程序安装位置
-	common := []string{
-		`C:\\Program Files`,
-		`C:\\Program Files (x86)`,
-		`C:\\ProgramData`,
-		filepath.Join(os.Getenv("USERPROFILE"), `AppData\\Local\\Programs`),
-	}
-	for _, c := range common {
-		if fi, err := os.Stat(c); err == nil && fi.IsDir() {
-			roots = append(roots, c)
+
+	// 扫描所有可用驱动器
+	drives := getAvailableDrives()
+	for _, drive := range drives {
+		// 预定义的常见目录名称
+		commonNames := []string{
+			"Program Files",
+			"Program Files (x86)",
+			"ProgramData",
+			"Games",
+			"Software",
+			"Apps",
+			"Programs",
+			"Program",
+			"Progreen",
+		}
+
+		// 1. 添加预定义的常见目录
+		for _, name := range commonNames {
+			path := filepath.Join(drive, name)
+			if fi, err := os.Stat(path); err == nil && fi.IsDir() {
+				roots = append(roots, path)
+			}
+		}
+
+		// 2. 扫描驱动器根目录，查找包含 Program, Game, App 等关键字的目录
+		if entries, err := os.ReadDir(drive); err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					nameLower := strings.ToLower(entry.Name())
+					if strings.Contains(nameLower, "program") ||
+						strings.Contains(nameLower, "game") ||
+						strings.Contains(nameLower, "app") ||
+						strings.Contains(nameLower, "soft") {
+						// 避免重复添加（如果已经在 commonNames 中涵盖）
+						path := filepath.Join(drive, entry.Name())
+						alreadyAdded := false
+						for _, r := range roots {
+							if strings.EqualFold(r, path) {
+								alreadyAdded = true
+								break
+							}
+						}
+						if !alreadyAdded {
+							roots = append(roots, path)
+						}
+					}
+				}
+			}
 		}
 	}
+
+	// 用户特定目录 (通常在 C 盘，但也可能被重定向)
+	userPrograms := filepath.Join(os.Getenv("USERPROFILE"), `AppData\Local\Programs`)
+	if fi, err := os.Stat(userPrograms); err == nil && fi.IsDir() {
+		roots = append(roots, userPrograms)
+	}
+
 	return roots
+}
+
+// getAvailableDrives 获取系统中所有可用的逻辑驱动器根路径 (例如 "C:\", "D:\")
+func getAvailableDrives() []string {
+	var drives []string
+	for _, drive := range "CDEFGHIJKLMNOPQRSTUVWXYZ" {
+		path := string(drive) + ":\\"
+		if _, err := os.Stat(path); err == nil {
+			drives = append(drives, path)
+		}
+	}
+	return drives
 }
